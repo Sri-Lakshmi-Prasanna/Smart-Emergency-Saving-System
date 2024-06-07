@@ -1,0 +1,119 @@
+#include <SoftwareSerial.h>
+#include <MPU6050_tockn.h>
+#include <Wire.h>
+#include <TinyGPS++.h>
+TinyGPSPlusgps;
+MPU6050 mpu6050(Wire);
+long timer = 0;
+SoftwareSerialespSerial(3, 4); //Pin 2 and 3 act as RX and TX. Connect them to TX and RX of ESP8266
+SoftwareSerial ss(6,7); //rx=6 and tx=7
+#define DEBUG true
+String mySSID = "My phone"; // WiFi SSID
+String myPWD = "luckylove"; // WiFi Password
+String myAPI = "63QP1EEXGD5YKV23"; // API Key
+String myHOST = "api.thingspeak.com";
+String myPORT = "80";
+String myFIELD1 = "field1";
+String myFIELD2 = "field2";
+String myFIELD3 = "field3";
+String myFIELD4 = "field4";
+String myFIELD5 = "field5";
+String myFIELD6 = "field6";
+//String myFIELD7 = "field7";
+//String myFIELD8 = "field8";
+String lat,lng,t,x,y,z;
+void setup()
+{
+Serial.begin(9600);
+Wire.begin();
+mpu6050.begin();
+espSerial.begin(115200);
+Serial.println("WiFi begin");
+ss.begin(9600);
+Serial.println("gps begin");
+espData("AT+RST", 1000, DEBUG); //Reset the ESP8266 module
+espData("AT+CWMODE=1", 1000, DEBUG); //Set the ESP mode as station mode
+espData("AT+CWJAP=\""+ mySSID +"\",\""+ myPWD +"\"", 1000, DEBUG);
+//Connect to WiFi network
+delay(1000);
+}
+void loop()
+{
+mpu6050.update();
+/* while(ss.available())//While there are characters to come from the GPS
+{
+gps.encode(ss.read());//This feeds the serial NMEA data into the library one char at a time
+}
+lat=String(gps.location.lat());
+lng=String(gps.location.lng());
+Serial.print("latitude: ");
+Serial.println(gps.location.lat());
+Serial.print("longitude: ");
+Serial.println(gps.location.lng());*/
+if(millis() - timer > 100){
+while(ss.available())//While there are characters to come from the GPS
+{
+gps.encode(ss.read());//This feeds the serial NMEA data into the library one char at a time
+}
+if(gps.location.isUpdated())//This will pretty much be fired all the time anyway but will atleast reduce it to only after a package of NMEA data comes in
+{
+lat=String(gps.location.lat());
+lng=String(gps.location.lng());
+Serial.print("latitude: ");
+Serial.println(gps.location.lat());
+Serial.print("longitude: ");
+Serial.println(gps.location.lng());
+Serial.println("======================================================
+=");
+Serial.print("temp : ");Serial.println(mpu6050.getTemp());
+Serial.print("accX : ");Serial.println(mpu6050.getAccX());
+Serial.print(" accY : ");Serial.print(mpu6050.getAccY());
+Serial.print(" accZ : ");Serial.println(mpu6050.getAccZ());
+t=String(mpu6050.getTemp());
+x=String(mpu6050.getAccX());
+y=String(mpu6050.getAccY());
+z=String(mpu6050.getAccZ());
+if(mpu6050.getAccX()>0.3)//This will pretty much be fired all the time anyway but will at least reduce it to only after a package of NMEA data comes in
+{
+String sendData = "GET /update?api_key="+ myAPI +"&"+ myFIELD1
++"="+lat+"&"+ myFIELD2 +"="+lng+"&"+ myFIELD3 +"="+t+"&"+ myFIELD4
++"="+x+"&"+ myFIELD5 +"="+y+"&"+ myFIELD6 +"="+z;//+"&"+ myFIELD7
++"="+String("6300997006")+"&"+ myFIELD8 +"="+String("7330844898");
+espData("AT+CIPMUX=1", 1000, DEBUG); //Allow multiple connections
+espData("AT+CIPSTART=0,\"TCP\",\""+ myHOST +"\","+ myPORT, 1000, DEBUG);
+espData("AT+CIPSEND=0," +String(sendData.length()+4),1000,DEBUG);
+espSerial.find(">");
+espSerial.println(sendData);
+Serial.print("latitude: ");
+Serial.println(lat);
+Serial.print("longitude: ");
+Serial.println(lng);
+espData("AT+CIPCLOSE=0",1000,DEBUG);
+delay(100);
+}
+}
+timer = millis();
+}
+}
+String espData(String command, const int timeout, boolean debug)
+{
+Serial.print("AT Command ==> ");
+Serial.print(command);
+Serial.println(" ");
+String response = "";
+espSerial.println(command);
+long int time = millis();
+while ( (time + timeout) >millis())
+{
+while (espSerial.available())
+{
+char c = espSerial.read();
+response += c;
+}
+}
+if (debug)
+{
+//Serial.print(response);
+}
+return response;
+}
